@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curve Lab · secp256k1 from scratch</title>
+<meta name="description" content="The cryptography under Bitcoin and Ethereum, written from scratch in plain JavaScript and run live in your browser: elliptic-curve arithmetic, Keccak-256, ECDSA with recovery, a nonce-reuse key extraction, Schnorr and Shamir.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 fill=%22%23102044%22/%3E%3Cpath d=%22M6 26c8-2 9-8 10-10s2-8 10-10%22 fill=%22none%22 stroke=%22%23e0a526%22 stroke-width=%223%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef0ec; --sheet:#f8f8f4; --ink:#102044; --mute:#5c6680; --rule:#c9cfd9; --grid:#dfe4ea;
+  --gold:#e0a526; --goldbg:#f6e7bf; --ok:#2c7a52; --bad:#b8392b;
+  --serif:'Newsreader',Georgia,serif; --mono:'IBM Plex Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--bg)}
+body{background:var(--bg) linear-gradient(var(--grid) 1px,transparent 1px) 0 0/100% 28px;color:var(--ink);font:400 17px/1.65 var(--serif);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.wrap{max-width:1120px;margin:0 auto;padding:0 28px}
+code,.mono{font-family:var(--mono);font-size:.82em}
+.label{font:500 11px/1.4 var(--mono);text-transform:uppercase;letter-spacing:.09em;color:var(--mute)}
+
+.masthead{padding:56px 0 34px;display:grid;grid-template-columns:1.3fr 1fr;gap:56px;align-items:end;border-bottom:2px solid var(--ink)}
+.masthead h1{font:500 clamp(48px,7.4vw,98px)/.9 var(--serif);letter-spacing:-.025em}
+.masthead h1 b{font-weight:700;display:block}
+.masthead p{font-size:18px;max-width:46ch}
+.masthead p+p{margin-top:10px;font-size:15px;color:var(--mute)}
+.eqn{font:500 15px var(--mono);background:var(--ink);color:var(--sheet);display:inline-block;padding:6px 12px;margin-top:18px}
+
+section.exp{display:grid;grid-template-columns:260px 1fr;gap:40px;padding:48px 0;border-bottom:1px solid var(--rule)}
+.side h2{font:700 30px/1.05 var(--serif);letter-spacing:-.01em;margin:6px 0 12px}
+.side p{font-size:15.5px;color:#2b3a5e}
+.side p+p{margin-top:10px}
+.bench{background:var(--sheet);border:1.5px solid var(--ink);padding:20px 22px;min-width:0}
+.row{display:grid;grid-template-columns:150px 1fr;gap:14px;padding:7px 0;border-bottom:1px dashed var(--rule);align-items:baseline}
+.row:last-child{border-bottom:0}
+.val{font:400 12.5px/1.55 var(--mono);word-break:break-all}
+.val.big{font-size:14px;font-weight:600}
+.hl{background:var(--goldbg)}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 14px}
+button.b{font:600 12px var(--mono);letter-spacing:.04em;text-transform:uppercase;background:var(--ink);color:var(--sheet);border:0;padding:9px 14px;cursor:pointer}
+button.b.alt{background:none;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink)}
+button.b:hover{background:var(--gold);color:var(--ink);box-shadow:none}
+input.t,textarea.t,select.t{width:100%;font:400 13px var(--mono);border:1.5px solid var(--ink);background:#fff;padding:9px 10px;color:var(--ink)}
+textarea.t{resize:vertical;min-height:62px}
+.ok{color:var(--ok);font-weight:600} .no{color:var(--bad);font-weight:600}
+.note{font-size:14px;color:var(--mute);margin-top:12px}
+.warn{border-left:3px solid var(--gold);padding:6px 12px;background:#fbf4e1;font-size:14px;margin:10px 0}
+
+/* toy curve */
+.toy{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:20px}
+#plot{width:100%;aspect-ratio:1;display:block;background:#fff;border:1px solid var(--rule);cursor:crosshair;touch-action:manipulation}
+.toyside .row{grid-template-columns:62px 1fr}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font:400 12px var(--mono)}
+.legend i{display:inline-block;width:10px;height:10px;margin-right:5px;vertical-align:-1px}
+
+.steps{counter-reset:s;margin-top:14px}
+.step{display:grid;grid-template-columns:28px 1fr;gap:10px;padding:10px 0;border-top:1px dashed var(--rule);opacity:.25;transition:opacity .4s}
+.step.on{opacity:1}
+.step::before{counter-increment:s;content:counter(s);font:600 12px var(--mono);background:var(--ink);color:var(--sheet);width:22px;height:22px;display:grid;place-items:center;margin-top:2px}
+.step .f{font:500 13px var(--mono);margin:4px 0}
+.pwned{font:700 30px/1.1 var(--serif);color:var(--bad);margin-top:6px}
+
+.shares{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin:12px 0}
+.share{border:1.5px solid var(--ink);padding:10px;font:400 11px/1.5 var(--mono);word-break:break-all;cursor:pointer;background:#fff;user-select:none}
+.share.sel{background:var(--ink);color:var(--sheet)}
+.share b{display:block;font-size:12px;margin-bottom:4px}
+
+footer{padding:34px 0 60px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:28px;font-size:14.5px;color:#2b3a5e}
+footer h4{font:500 11px var(--mono);text-transform:uppercase;letter-spacing:.09em;color:var(--mute);margin-bottom:6px}
+
+@media (max-width:900px){
+  .wrap{padding:0 16px}
+  .masthead{grid-template-columns:1fr;gap:20px;padding-top:36px}
+  section.exp{grid-template-columns:1fr;gap:18px;padding:34px 0}
+  .toy{grid-template-columns:1fr}
+  .row{grid-template-columns:1fr;gap:2px}
+  .bench{padding:16px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="masthead">
+    <h1>Curve Lab<b>secp256k1, by hand.</b></h1>
+    <div>
+      <p>The cryptography that holds every Bitcoin and Ethereum balance, written from first principles in plain JavaScript and run live in your browser. No crypto libraries: the curve, Keccak-256, ECDSA, Schnorr and Shamir are all in <code>lib/</code>.</p>
+      <p>Each section runs real code on real 256-bit numbers, and the last few break and rebuild private keys.</p>
+      <div class="eqn">y² = x³ + 7 &nbsp;(mod p)</div>
+    </div>
+  </header>
+
+  <!-- 1. toy curve -->
+  <section class="exp">
+    <div class="side"><span class="label">Experiment 1</span><h2>Adding points on a finite curve</h2>
+      <p>Over the real numbers, y² = x³ + 7 is a smooth curve. Over a finite field it becomes a scatter of points, but the addition rule still works: draw the line through P and Q, find the third point it hits, reflect it.</p>
+      <p>Click two points. Then multiply: k·P is P added to itself k times, and walking k backwards from the result is the discrete-log problem that keeps your keys safe.</p></div>
+    <div class="bench">
+      <div class="toy">
+        <canvas id="plot" width="720" height="720" aria-label="Points of y^2 = x^3 + 7 over a small prime field"></canvas>
+        <div class="toyside">
+          <div class="label">Field</div>
+          <select class="t" id="prime"><option value="97">p = 97</option><option value="211">p = 211</option><option value="43">p = 43</option></select>
+          <div style="margin-top:12px" id="toyInfo"></div>
+          <div class="label" style="margin-top:14px">Scalar k</div>
+          <input class="t" id="kIn" type="number" min="1" value="7">
+          <div class="btns" style="margin-top:8px"><button class="b" id="walk">Walk k·P</button><button class="b alt" id="clr">Clear</button></div>
+          <div class="legend"><span><i style="background:#102044"></i>P</span><span><i style="background:#2c7a52"></i>Q</span><span><i style="background:#e0a526"></i>P+Q</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. keys -->
+  <section class="exp">
+    <div class="side"><span class="label">Experiment 2</span><h2>A keypair and an Ethereum address</h2>
+      <p>A private key is a random number d below the group order n. The public key is the point d·G. The address is the last 20 bytes of the Keccak-256 hash of that point, with the EIP-55 checksum mixing upper and lower case.</p>
+      <p>Everything below uses this key.</p></div>
+    <div class="bench">
+      <div class="btns"><button class="b" id="gen">New random key</button><button class="b alt" id="one">Use d = 1</button></div>
+      <div class="row"><span class="label">Private key d</span><span class="val big" id="kD"></span></div>
+      <div class="row"><span class="label">Public d·G (x)</span><span class="val" id="kX"></span></div>
+      <div class="row"><span class="label">Public d·G (y)</span><span class="val" id="kY"></span></div>
+      <div class="row"><span class="label">Compressed</span><span class="val" id="kC"></span></div>
+      <div class="row"><span class="label">keccak256(x‖y)</span><span class="val" id="kH"></span></div>
+      <div class="row"><span class="label">Address</span><span class="val big hl" id="kA"></span></div>
+      <div class="row"><span class="label">Time</span><span class="val" id="kT"></span></div>
+      <p class="note">d = 1 gives 0x7E5F…5Bdf, a known address anyone can check. Keys made here are generated with your browser's CSPRNG but have been shown on a web page, so treat them as burned. Never paste a real key into any site.</p>
+    </div>
+  </section>
+
+  <!-- 3. sign -->
+  <section class="exp">
+    <div class="side"><span class="label">Experiment 3</span><h2>Sign, verify, recover</h2>
+      <p>Ethereum's <code>personal_sign</code> prefixes the message and hashes it with Keccak. ECDSA then picks a nonce k (here derived deterministically per RFC 6979), sets r to the x-coordinate of k·G, and solves s = k⁻¹(z + r·d).</p>
+      <p>The extra byte v lets anyone recover the signer's public key from the signature alone. That is how a contract or a login page knows who signed.</p></div>
+    <div class="bench">
+      <div class="label">Message</div>
+      <textarea class="t" id="msg">I am at TOKEN2049 Singapore.</textarea>
+      <div class="btns" style="margin-top:10px"><button class="b" id="sign">Sign with d</button></div>
+      <div class="row"><span class="label">EIP-191 hash z</span><span class="val" id="sZ"></span></div>
+      <div class="row"><span class="label">Nonce k</span><span class="val" id="sK"></span></div>
+      <div class="row"><span class="label">r</span><span class="val" id="sR"></span></div>
+      <div class="row"><span class="label">s (low-s)</span><span class="val" id="sS"></span></div>
+      <div class="row"><span class="label">v</span><span class="val" id="sV"></span></div>
+      <div class="row"><span class="label">Signature</span><span class="val hl" id="sSig"></span></div>
+      <div class="row"><span class="label">Verify</span><span class="val" id="sOk"></span></div>
+      <div class="row"><span class="label">ecrecover</span><span class="val" id="sRec"></span></div>
+      <div class="warn">Try it with a real wallet: sign any text with MetaMask (or copy a signature from Etherscan's Verified Signatures page), paste both below, and this code will tell you which address signed it.</div>
+      <div class="label">Signature to check (0x + 130 hex)</div>
+      <input class="t" id="extSig" placeholder="0x…" spellcheck="false">
+      <div class="btns" style="margin-top:8px"><button class="b alt" id="recBtn">Recover signer of the message above</button></div>
+      <div class="val" id="extOut"></div>
+    </div>
+  </section>
+
+  <!-- 4. attack -->
+  <section class="exp">
+    <div class="side"><span class="label">Experiment 4</span><h2>Reuse a nonce, lose the key</h2>
+      <p>If the same k signs two different messages, both signatures share the same r, and two equations in two unknowns give up the private key with grade-school algebra.</p>
+      <p>This is how Sony's PS3 signing key was extracted in 2010, and how a 2013 Android RNG bug emptied Bitcoin wallets. It is the reason RFC 6979 exists.</p></div>
+    <div class="bench">
+      <div class="btns"><button class="b" id="atk">Sign twice with a broken RNG, then attack</button></div>
+      <div class="steps" id="steps">
+        <div class="step"><div><b>Victim signs “send 1 ETH to Alice” and “send 1 ETH to Bob” with the same k.</b><div class="f" id="a1"></div><div class="f" id="a2"></div></div></div>
+        <div class="step"><div><b>An observer notices r₁ = r₂.</b> Same r means same k·G, so the same k.<div class="f" id="a3"></div></div></div>
+        <div class="step"><div><b>Subtract the two signing equations.</b> s₁ − s₂ = k⁻¹(z₁ − z₂), so k = (z₁ − z₂) / (s₁ − s₂) mod n.<div class="f" id="a4"></div></div></div>
+        <div class="step"><div><b>Solve for d.</b> d = (s₁·k − z₁) / r mod n.<div class="f" id="a5"></div><div class="pwned" id="a6"></div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. schnorr -->
+  <section class="exp">
+    <div class="side"><span class="label">Experiment 5</span><h2>Schnorr, the Taproot signature</h2>
+      <p>BIP-340 Schnorr signs with s = k + e·d, where e hashes the nonce point, the key and the message. It is linear, so keys and signatures from several parties can be added into one. That is what makes MuSig multisigs look like single-key spends on Bitcoin.</p>
+      <p>Public keys shrink to 32 bytes by fixing y to be even.</p></div>
+    <div class="bench">
+      <div class="btns"><button class="b" id="sch">Schnorr-sign the message from experiment 3</button></div>
+      <div class="row"><span class="label">x-only pubkey</span><span class="val" id="cP"></span></div>
+      <div class="row"><span class="label">sha256(msg)</span><span class="val" id="cM"></span></div>
+      <div class="row"><span class="label">Signature R‖s</span><span class="val hl" id="cS"></span></div>
+      <div class="row"><span class="label">Verify</span><span class="val" id="cOk"></span></div>
+      <div class="row"><span class="label">Flip one bit</span><span class="val" id="cBad"></span></div>
+      <p class="note">Checked against the official BIP-340 test vectors in <code>test/lab.test.js</code>.</p>
+    </div>
+  </section>
+
+  <!-- 6. shamir -->
+  <section class="exp">
+    <div class="side"><span class="label">Experiment 6</span><h2>Split the key three of five</h2>
+      <p>Shamir's scheme hides d as the constant term of a random degree-2 polynomial and hands out five points on it. Any three points pin down the polynomial; two reveal nothing at all.</p>
+      <p>Pick shares and rebuild. Lagrange interpolation at x = 0 does the work.</p></div>
+    <div class="bench">
+      <div class="btns"><button class="b" id="spl">Split current key</button></div>
+      <div class="shares" id="shares"></div>
+      <div class="row"><span class="label">Selected</span><span class="val" id="hN">click shares to select</span></div>
+      <div class="row"><span class="label">Rebuilt d</span><span class="val" id="hD"></span></div>
+      <div class="row"><span class="label">Matches?</span><span class="val" id="hOk"></span></div>
+    </div>
+  </section>
+
+  <footer>
+    <div><h4>Under the hood</h4><code>lib/ec.js</code> field and curve arithmetic, double-and-add. <code>lib/keccak.js</code> Keccak-f[1600] from the spec. <code>lib/sigs.js</code> RFC 6979, ECDSA, recovery, the nonce-reuse solver, BIP-340. <code>lib/shamir.js</code> polynomial split and Lagrange. SHA-256 and HMAC come from WebCrypto.</div>
+    <div><h4>Verified</h4>Public keys and signatures are cross-checked against OpenSSL (Node's crypto) in both directions, plus Keccak, EIP-55 and BIP-340 published vectors. Ten tests, <code>npm test</code>.</div>
+    <div><h4>About</h4>Built by <a href="https://sunghanpark.vercel.app">Sunghan Park</a> for learning, not custody: BigInt arithmetic is not constant-time. Source at <a href="https://github.com/hpark236/curve-lab">github.com/hpark236/curve-lab</a>.</div>
+  </footer>
+</div>
+
+<script type="module">
+import { secp256k1 as C, curve, hex, toBig, bytesToHex, hexToBytes, utf8, encodePoint, randomScalar, allPoints, inv, mod } from './lib/ec.js';
+import { keccak256 } from './lib/keccak.js';
+import { ethAddress, personalHash, signHash, verifyHash, recover, recoverFromReusedNonce, schnorrSign, schnorrVerify, xOnly, sigHex, parseSig, sha256 } from './lib/sigs.js';
+import { split, combine } from './lib/shamir.js';
+
+const $ = s => document.querySelector(s);
+const h = n => '0x' + hex(n);
+const short = s => s.length > 26 ? s.slice(0, 14) + '…' + s.slice(-10) : s;
+let d, Q;
+
+// ---------- Experiment 1: toy curve ----------
+let T, pts, P1 = null, P2 = null, walkPts = [];
+const cv = $('#plot'), g = cv.getContext('2d');
+function setupToy() {
+  const p = BigInt($('#prime').value);
+  T = curve({ p, b: 7n });
+  pts = allPoints(T);
+  P1 = P2 = null; walkPts = [];
+  drawToy();
+}
+const scale = () => (cv.width - 60) / Number(T.p);
+const toXY = P => [40 + Number(P.x) * scale() + scale() / 2, cv.height - 30 - Number(P.y) * scale() - scale() / 2];
+function drawToy() {
+  const W = cv.width, H = cv.height, s = scale();
+  g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+  g.strokeStyle = '#eef1f5'; g.lineWidth = 1;
+  for (let i = 0; i <= Number(T.p); i += Number(T.p) > 100 ? 10 : 5) {
+    g.beginPath(); g.moveTo(40 + i * s, 10); g.lineTo(40 + i * s, H - 30); g.stroke();
+    g.beginPath(); g.moveTo(40, H - 30 - i * s); g.lineTo(W - 20, H - 30 - i * s); g.stroke();
+  }
+  g.fillStyle = '#5c6680'; g.font = '18px IBM Plex Mono'; g.fillText('0', 22, H - 12); g.fillText(String(T.p), W - 52, H - 8);
+  // chord line wrapping mod p, drawn as the set of lattice points on y = λx + c
+  if (P1 && P2 && !T.eq(P1, T.neg(P2))) {
+    const lam = T.eq(P1, P2) ? mod((3n * P1.x * P1.x) * inv(2n * P1.y, T.p), T.p) : mod((P2.y - P1.y) * inv(P2.x - P1.x, T.p), T.p);
+    const c = mod(P1.y - lam * P1.x, T.p);
+    g.fillStyle = 'rgba(224,165,38,.25)';
+    for (let x = 0n; x < T.p; x++) { const [px, py] = toXY({ x, y: mod(lam * x + c, T.p) }); g.fillRect(px - s / 2, py - s / 2, s, s); }
+  }
+  // walk path
+  if (walkPts.length) {
+    g.strokeStyle = 'rgba(16,32,68,.35)'; g.lineWidth = 1.5; g.beginPath();
+    walkPts.forEach((P, i) => { if (!P) return; const [x, y] = toXY(P); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke();
+  }
+  for (const P of pts) { const [x, y] = toXY(P); g.fillStyle = '#9aa6bd'; g.beginPath(); g.arc(x, y, Math.max(4.5, s * .42), 0, 7); g.fill(); }
+  const mark = (P, col, r = 8, label = '') => { if (!P) return; const [x, y] = toXY(P); g.fillStyle = col; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); if (label) { g.fillStyle = '#102044'; g.font = '600 20px IBM Plex Mono'; g.fillText(label, x + 10, y - 10); } };
+  walkPts.forEach((P, i) => mark(P, i === walkPts.length - 1 ? '#e0a526' : 'rgba(16,32,68,.55)', i === walkPts.length - 1 ? 9 : 5, i === walkPts.length - 1 ? `${walkPts.length}P` : ''));
+  mark(P1, '#102044', 8, 'P'); mark(P2, '#2c7a52', 8, 'Q');
+  if (P1 && P2) mark(T.add(P1, P2), '#e0a526', 9, T.add(P1, P2) ? 'P+Q' : '');
+  const order = P1 ? (() => { let k = 1, R = P1; while (R !== null && k < 2000) { R = T.add(R, P1); k++; } return k; })() : null;
+  const sum = P1 && P2 ? T.add(P1, P2) : null;
+  $('#toyInfo').innerHTML = `<div class="row"><span class="label">points</span><span class="val">${pts.length + 1} incl. ∞</span></div>
+    <div class="row"><span class="label">P</span><span class="val">${P1 ? `(${P1.x}, ${P1.y})` : 'click'}</span></div>
+    <div class="row"><span class="label">Q</span><span class="val">${P2 ? `(${P2.x}, ${P2.y})` : 'click'}</span></div>
+    <div class="row"><span class="label">P+Q</span><span class="val">${P1 && P2 ? (sum ? `(${sum.x}, ${sum.y})` : '∞ (Q = −P)') : '-'}</span></div>
+    <div class="row"><span class="label">ord(P)</span><span class="val">${order ?? '-'}</span></div>`;
+}
+cv.addEventListener('click', e => {
+  const r = cv.getBoundingClientRect(), sx = cv.width / r.width;
+  const mx = (e.clientX - r.left) * sx, my = (e.clientY - r.top) * sx;
+  let best = null, bd = 1e9;
+  for (const P of pts) { const [x, y] = toXY(P); const dd = (x - mx) ** 2 + (y - my) ** 2; if (dd < bd) { bd = dd; best = P; } }
+  if (!best || bd > 900) return;
+  walkPts = [];
+  if (!P1 || (P1 && P2)) { P1 = best; P2 = null; } else P2 = best;
+  drawToy();
+});
+$('#prime').onchange = setupToy;
+$('#clr').onclick = () => { P1 = P2 = null; walkPts = []; drawToy(); };
+$('#walk').onclick = async () => {
+  if (!P1) P1 = pts[Math.floor(pts.length / 3)];
+  P2 = null; walkPts = [];
+  const k = Math.max(1, Math.min(200, +$('#kIn').value || 1));
+  let R = null;
+  for (let i = 0; i < k; i++) { R = T.add(R, P1); walkPts.push(R); drawToy(); await new Promise(r => setTimeout(r, Math.max(30, 380 - k * 12))); }
+};
+setupToy();
+
+// ---------- Experiment 2: keys ----------
+function setKey(newD) {
+  const t0 = performance.now();
+  d = newD; Q = C.mul(d);
+  const kh = bytesToHex(keccak256(hexToBytes(hex(Q.x) + hex(Q.y))));
+  const addr = ethAddress(Q);
+  const ms = performance.now() - t0;
+  $('#kD').textContent = h(d); $('#kX').textContent = h(Q.x); $('#kY').textContent = h(Q.y);
+  $('#kC').textContent = '0x' + encodePoint(Q, true); $('#kH').textContent = '0x' + kh; $('#kA').textContent = addr;
+  $('#kT').textContent = `${ms.toFixed(1)} ms for one 256-bit scalar multiplication plus Keccak`;
+  ['#sZ', '#sK', '#sR', '#sS', '#sV', '#sSig', '#sOk', '#sRec', '#cP', '#cM', '#cS', '#cOk', '#cBad', '#hD', '#hOk'].forEach(s => $(s).textContent = '');
+  $('#shares').innerHTML = ''; $('#hN').textContent = 'click shares to select';
+}
+$('#gen').onclick = () => setKey(randomScalar());
+$('#one').onclick = () => setKey(1n);
+setKey(randomScalar());
+
+// ---------- Experiment 3: sign / verify / recover ----------
+$('#sign').onclick = async () => {
+  const z = personalHash($('#msg').value);
+  const sig = await signHash(d, z);
+  $('#sZ').textContent = '0x' + bytesToHex(z); $('#sK').textContent = h(sig.k);
+  $('#sR').textContent = h(sig.r); $('#sS').textContent = h(sig.s); $('#sV').textContent = `${sig.v} (R.y is ${sig.recid & 1 ? 'odd' : 'even'})`;
+  $('#sSig').textContent = sigHex(sig);
+  $('#sOk').innerHTML = verifyHash(Q, z, sig) ? '<span class="ok">valid for d·G</span>' : '<span class="no">invalid</span>';
+  const R = recover(z, sig);
+  $('#sRec').innerHTML = `${ethAddress(R)} ${C.eq(R, Q) ? '<span class="ok">matches</span>' : '<span class="no">mismatch</span>'}`;
+  $('#extSig').value = sigHex(sig);
+};
+$('#recBtn').onclick = () => {
+  try {
+    const sig = parseSig($('#extSig').value);
+    const R = recover(personalHash($('#msg').value), sig);
+    $('#extOut').innerHTML = `Signed by <b>${ethAddress(R)}</b>${C.eq(R, Q) ? ' <span class="ok">(your key above)</span>' : ''}. If the message text differs by one character, you get a different, meaningless address.`;
+  } catch (e) { $('#extOut').innerHTML = `<span class="no">${e.message}</span>`; }
+};
+
+// ---------- Experiment 4: nonce reuse ----------
+$('#atk').onclick = async () => {
+  const steps = [...document.querySelectorAll('.step')]; steps.forEach(s => s.classList.remove('on')); $('#a6').textContent = '';
+  const k = randomScalar();
+  const z1 = personalHash('send 1 ETH to Alice'), z2 = personalHash('send 1 ETH to Bob');
+  const a = await signHash(d, z1, { forceK: k }), b = await signHash(d, z2, { forceK: k });
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  $('#a1').textContent = `sig₁: r=${short(h(a.r))} s=${short(h(a.s))}`; $('#a2').textContent = `sig₂: r=${short(h(b.r))} s=${short(h(b.s))}`;
+  steps[0].classList.add('on'); await wait(700);
+  $('#a3').textContent = `r₁ ${a.r === b.r ? '=' : '≠'} r₂`; steps[1].classList.add('on'); await wait(700);
+  const out = recoverFromReusedNonce(a, b, Q);
+  $('#a4').textContent = `k = ${short(h(out.k))}`; steps[2].classList.add('on'); await wait(700);
+  $('#a5').textContent = `d = ${h(out.d)}`; steps[3].classList.add('on');
+  $('#a6').textContent = out.d === d ? 'Private key recovered. It matches experiment 2.' : 'Recovery failed.';
+};
+
+// ---------- Experiment 5: Schnorr ----------
+$('#sch').onclick = async () => {
+  const m = await sha256(utf8($('#msg').value));
+  const sig = await schnorrSign(d, m, crypto.getRandomValues(new Uint8Array(32)));
+  $('#cP').textContent = '0x' + bytesToHex(xOnly(Q)); $('#cM').textContent = '0x' + bytesToHex(m);
+  $('#cS').textContent = '0x' + bytesToHex(sig);
+  $('#cOk').innerHTML = (await schnorrVerify(xOnly(Q), m, sig)) ? '<span class="ok">valid</span>' : '<span class="no">invalid</span>';
+  const bad = sig.slice(); bad[40] ^= 1;
+  $('#cBad').innerHTML = (await schnorrVerify(xOnly(Q), m, bad)) ? '<span class="no">still valid?!</span>' : '<span class="ok">rejected, as it should be</span>';
+};
+
+// ---------- Experiment 6: Shamir ----------
+let shares = [], picked = new Set();
+$('#spl').onclick = () => {
+  shares = split(d, 3, 5); picked = new Set();
+  $('#shares').innerHTML = shares.map((s, i) => `<div class="share" data-i="${i}"><b>Share ${s.x}</b>${short(h(s.y))}</div>`).join('');
+  $('#hN').textContent = 'click shares to select'; $('#hD').textContent = ''; $('#hOk').textContent = '';
+};
+$('#shares').onclick = e => {
+  const el = e.target.closest('.share'); if (!el) return;
+  const i = +el.dataset.i; picked.has(i) ? picked.delete(i) : picked.add(i); el.classList.toggle('sel');
+  const sel = [...picked].map(i => shares[i]);
+  $('#hN').textContent = sel.length ? sel.map(s => 'x=' + s.x).join(', ') : 'none';
+  if (sel.length < 1) { $('#hD').textContent = ''; $('#hOk').textContent = ''; return; }
+  const r = combine(sel);
+  $('#hD').textContent = h(r);
+  $('#hOk').innerHTML = r === d ? `<span class="ok">yes, ${sel.length} shares rebuild the key</span>` : `<span class="no">no, ${sel.length} share${sel.length > 1 ? 's give' : ' gives'} a random-looking number${sel.length < 3 ? '. Need 3' : ''}</span>`;
+};
+</script>
+</body>
+</html>

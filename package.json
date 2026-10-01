@@ -1,0 +1,9 @@
+{
+  "name": "curve-lab",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "secp256k1, Keccak-256, ECDSA, Schnorr and Shamir from scratch in plain JavaScript BigInt, with a nonce-reuse attack",
+  "scripts": { "test": "node --test test/*.test.js" },
+  "engines": { "node": "22.x" }
+}
