@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Curve Lab</title>
+<title>secp256k1-js</title>
 <meta name="description" content="secp256k1, Keccak-256, ECDSA, Schnorr and Shamir secret sharing implemented in plain JavaScript, with interactive examples.">
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="/style.css">
@@ -31,7 +31,7 @@
 </style>
 </head>
 <body>
-<h1>Curve Lab</h1>
+<h1>secp256k1-js</h1>
 <p class="desc">The elliptic-curve cryptography used by Bitcoin and Ethereum, implemented in plain JavaScript without crypto libraries: secp256k1 arithmetic, Keccak-256, ECDSA with public key recovery, Schnorr signatures (BIP-340) and Shamir secret sharing. Everything below runs in the browser.</p>
 
 <h2>1. Point addition on a small curve</h2>
@@ -106,7 +106,7 @@
 
 <h2>Tests</h2>
 <p class="small">Public keys and signatures are checked against OpenSSL (through Node's crypto module) in both directions, and against published Keccak-256, EIP-55 and BIP-340 test vectors. BigInt arithmetic is not constant-time, so this code is for learning, not for holding funds.</p>
-<p class="small muted">Source: <a href="https://github.com/hpark236/curve-lab">github.com/hpark236/curve-lab</a></p>
+<p class="small muted">Source: <a href="https://github.com/hpark236/secp256k1-js">github.com/hpark236/secp256k1-js</a></p>
 
 <script type="module">
 import { secp256k1 as C, curve, hex, toBig, bytesToHex, hexToBytes, utf8, encodePoint, randomScalar, allPoints, inv, mod } from './lib/ec.js';

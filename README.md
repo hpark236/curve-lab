@@ -1,8 +1,8 @@
-# Curve Lab
+# secp256k1-js
 
 The cryptography under Bitcoin and Ethereum, written from first principles in plain JavaScript `BigInt` and run live in the browser. No crypto libraries.
 
-**Live:** https://secp-lab.vercel.app
+**Live:** https://secp256k1-js.vercel.app
 
 ## Experiments
 
